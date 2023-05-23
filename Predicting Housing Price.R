@@ -3,8 +3,8 @@ library(caret)
 library(randomForest)
 
 # Load the train and test datasets
-train_data <- read.csv("D:/4th year CS/Distrputed Computing/House-Pricing-Project/train.csv")
-test_data <- read.csv("D:/4th year CS/Distrputed Computing/House-Pricing-Project/test.csv")
+train_data <- read.csv("train.csv")
+test_data <- read.csv("test.csv")
 
 
 
@@ -45,13 +45,20 @@ EncodeCategoricalData <- function(train_data, test_data) {
   # Concat train and test datasets
   combined_data <- rbind(train_data, test_data)
   
+  salePrice <- combined_data$SalePrice
   
   # Apply one-hot encoding
   encoded_data <- predict(dummyVars(~., data = combined_data, fullRank = TRUE), newdata = combined_data)
   
+  
+  # Normalize Data with Z score
+  normalized_df <- as.data.frame(apply(encoded_data, 2, function(x) (x - mean(x, na.rm = TRUE)) / sd(x, na.rm = TRUE)))
+  
+  normalized_df$SalePrice <- salePrice
+  
   # Split the encoded data back into train and test
-  encoded_train_data <- encoded_data[1:nrow(train_data), ]
-  encoded_test_data <- encoded_data[(nrow(train_data) + 1):nrow(encoded_data), ]
+  encoded_train_data <- normalized_df[1:nrow(train_data), ]
+  encoded_test_data <- normalized_df[(nrow(train_data) + 1):nrow(normalized_df), ]
   
   # Cast to dataframes
   encoded_train_data <- as.data.frame(encoded_train_data)
@@ -74,21 +81,6 @@ FillNulls <- function(data){
   
   return(data)
 }
-
-#### Get Char Cols ####
-#get_character_columns <- function(data) {
-#  character_cols <- c()
-#  
-#  for (col in names(data)) {
-#    if (is.character(data[[col]])) {
-#      unique_count <- length(unique(data[[col]]))
-#      cat(col, "with", unique_count, "unique values\n")
-#      character_cols <- c(character_cols, col)
-#    }
-#  }
-#  
-#  return(character_cols)
-#}
 
 # Apply All Preprocessing and return TrainIDs, TestIDs, XTrain, YTrain, XTest
 Preprocess <- function(train_data, test_data){
@@ -120,7 +112,8 @@ Preprocess <- function(train_data, test_data){
   ######### Fill Nulls With Median Value of each columns ######### 
   x_train <- as.data.frame(FillNulls(x_train))
   x_test <- as.data.frame(FillNulls(x_test))
-  ######### ________________________________ ___________ #########
+  ######### ____________________________________________ #########
+  
   
   
   return(list(train_ids, x_train, y_train, test_ids,x_test))
@@ -157,10 +150,16 @@ x_test <- as.data.frame(processed_data[5])
 
 # Calculate Correlations
 correlation_matrix <- cor(x_train, y_train)
-print(correlation_matrix)
+print(correlation_matrix*100)
+
+# Remove Columns With Least Correlations
+rows_to_remove <- which(abs(correlation_matrix*100) < 15)
+correlation_matrix_filtered <- as.data.frame(correlation_matrix[-rows_to_remove, ])
+keep_columns <- rownames(correlation_matrix_filtered)
+x_train <- x_train[keep_columns]
+x_test <- x_test[keep_columns]
 
 #Split The Data
-
 splitted_data <- TrainValidateSplit(x_train, y_train, train_ids, 0.8, 120)
 x_train <- as.data.frame(splitted_data[1])
 y_train <- as.data.frame(splitted_data[2])
@@ -169,7 +168,6 @@ y_val <- as.data.frame(splitted_data[4])
 
 
 
-#create the model
 # Remove 'Id' column from x_train
 x_train <- x_train[, !(names(x_train) %in% c('Id'))]
 
@@ -180,8 +178,9 @@ SalePrice <- data.frame(SalePrice=y_train)
 # Combine x_train and y_train into a new data frame without 'Id' column
 train_data <- cbind(x_train, SalePrice)
 
-# Fit the random forest model
-model <- randomForest(SalePrice ~ ., data = train_data)
+
+#Train The model
+model <- randomForest(SalePrice ~ ., data = train_data, ntree=100)
 
 
 # Predictions for x_val
@@ -189,8 +188,6 @@ y_val <- y_val[, !(names(y_val) %in% c('Id'))]
 SalePrice <- data.frame(SalePrice=y_train)
 predictions <- predict(model, newdata = x_val)
 str(predictions)
-
-
 
 # Evaluate the model
 mse <- mean((predictions - y_val)^2)  # Mean squared error
@@ -205,18 +202,13 @@ cat("R-squared:", r_squared, "\n")
 
 # Create a data frame with 'Id' and 'SalePrice' columns
 predictions <- predict(model, newdata = x_test)
-start_id <- 1461
-end_id <- 2919
 
 # Create a data frame with sequential 'Id' and 'SalePrice' columns
-predictions_df <- data.frame(Id = seq(start_id, end_id), SalePrice = predictions)
+predictions_df <- data.frame(Id = seq(1461, 2919), SalePrice = predictions)
 
 
 # Save the data frame to a CSV file
-write.csv(predictions_df, file = "D:/4th year CS/Distrputed Computing/House-Pricing-Project/predictions.csv", row.names = FALSE)
-
-
-
+write.csv(predictions_df, file = "predictions.csv", row.names = FALSE)
 
 
 
