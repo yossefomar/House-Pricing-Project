@@ -1,6 +1,8 @@
 # Load necessary libraries
 library(caret)
 library(randomForest)
+library(gbm)
+
 
 # Load the train and test datasets
 train_data <- read.csv("D:/4th year CS/Distrputed Computing/House-Pricing-Project/train.csv")
@@ -75,22 +77,7 @@ FillNulls <- function(data){
   return(data)
 }
 
-#### Get Char Cols ####
-#get_character_columns <- function(data) {
-#  character_cols <- c()
-#  
-#  for (col in names(data)) {
-#    if (is.character(data[[col]])) {
-#      unique_count <- length(unique(data[[col]]))
-#      cat(col, "with", unique_count, "unique values\n")
-#      character_cols <- c(character_cols, col)
-#    }
-#  }
-#  
-#  return(character_cols)
-#}
-
-# Apply All Preprocessing and return TrainIDs, TestIDs, XTrain, YTrain, XTest
+# Apply All Pre processing and return TrainIDs, TestIDs, XTrain, YTrain, XTest
 Preprocess <- function(train_data, test_data){
   
   # Save Data IDs
@@ -103,7 +90,7 @@ Preprocess <- function(train_data, test_data){
   
   
   ######### Remove Columns that contains more the {30}% Null Values #########
-  processed_data <- RemoveNullColumns(30, train_data, test_data)
+  processed_data <- RemoveNullColumns(15, train_data, test_data)
   train_data <- as.data.frame(processed_data[1])
   test_data <- as.data.frame(processed_data[2])
   ######### _______________________________________________________ #########
@@ -142,7 +129,41 @@ TrainValidateSplit <- function(x, y, ids, splitSize=0.8, seed=100) {
   return(list(x_train, y_train, x_val, y_val))
 }
 
-#Exploring Dataset
+# Remove Id from train data
+process_train_data <- function(x_train, y_train) {
+  # Remove 'Id' column from x_train
+  x_train <- x_train[, !(names(x_train) %in% c('Id'))]
+  
+  # Remove 'Id' column from y_train
+  y_train <- y_train[, !(names(y_train) %in% c('Id'))]
+  
+  # Create a data frame with 'SalePrice' column from y_train
+  SalePrice <- data.frame(SalePrice = y_train)
+  
+  # Combine x_train and SalePrice into a new data frame without 'Id' column
+  train_data <- cbind(x_train, SalePrice)
+  
+  # Return the modified train_data
+  return(train_data)
+}
+
+# Remove least correlation 
+remove_low_correlation <- function(x_train, y_train, threshold = 0.4) {
+  correlation_matrix <- cor(x_train, y_train)
+  abs_correlation <- abs(correlation_matrix)
+  
+  num_vars_to_keep <- ceiling((1 - threshold) * ncol(x_train))
+  sorted_vars <- order(abs_correlation, decreasing = TRUE)
+  
+  x_train_filtered <- x_train[, sorted_vars[1:num_vars_to_keep]]
+  
+  return(x_train_filtered)
+}
+
+
+
+
+# Exploring Dataset
 ExploreData(train_data)
 ExploreData(test_data)
 
@@ -156,11 +177,11 @@ test_ids <- as.data.frame(processed_data[4])
 x_test <- as.data.frame(processed_data[5])
 
 # Calculate Correlations
-correlation_matrix <- cor(x_train, y_train)
-print(correlation_matrix)
+str(x_train)
+x_train <- remove_low_correlation(x_train, y_train, threshold = 0.5)
+str(x_train)
 
-#Split The Data
-
+# Split The Data
 splitted_data <- TrainValidateSplit(x_train, y_train, train_ids, 0.8, 120)
 x_train <- as.data.frame(splitted_data[1])
 y_train <- as.data.frame(splitted_data[2])
@@ -169,25 +190,21 @@ y_val <- as.data.frame(splitted_data[4])
 
 
 
-#create the model
-# Remove 'Id' column from x_train
-x_train <- x_train[, !(names(x_train) %in% c('Id'))]
+#Create the model
+#removing id from train data
+train_data <- process_train_data(x_train, y_train)
 
-# Remove 'Id' column from y_train
-y_train <- y_train[, !(names(y_train) %in% c('Id'))]
-SalePrice <- data.frame(SalePrice=y_train)
-
-# Combine x_train and y_train into a new data frame without 'Id' column
-train_data <- cbind(x_train, SalePrice)
 
 # Fit the random forest model
-model <- randomForest(SalePrice ~ ., data = train_data)
+#model <- randomForest(SalePrice ~ ., data = train_data, ntree = 200)
+gbm_model <- gbm(SalePrice ~ ., data = train_data, n.trees = 1000, shrinkage = 0.01, interaction.depth = 4)
 
 
 # Predictions for x_val
 y_val <- y_val[, !(names(y_val) %in% c('Id'))]
 SalePrice <- data.frame(SalePrice=y_train)
-predictions <- predict(model, newdata = x_val)
+#predictions <- predict(model, newdata = x_val)
+predictions <- predict(gbm_model, newdata = x_val)
 str(predictions)
 
 
@@ -204,7 +221,7 @@ cat("RMSE:", rmse, "\n")
 cat("R-squared:", r_squared, "\n")
 
 # Create a data frame with 'Id' and 'SalePrice' columns
-predictions <- predict(model, newdata = x_test)
+predictions <- predict(gbm_model, newdata = x_test)
 start_id <- 1461
 end_id <- 2919
 
