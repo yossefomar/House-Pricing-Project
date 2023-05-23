@@ -1,10 +1,10 @@
 # Load necessary libraries
 library(caret)
-
+library(randomForest)
 
 # Load the train and test datasets
-train_data <- read.csv("train.csv")
-test_data <- read.csv("test.csv")
+train_data <- read.csv("D:/4th year CS/Distrputed Computing/House-Pricing-Project/train.csv")
+test_data <- read.csv("D:/4th year CS/Distrputed Computing/House-Pricing-Project/test.csv")
 
 
 
@@ -167,6 +167,53 @@ y_train <- as.data.frame(splitted_data[2])
 x_val <- as.data.frame(splitted_data[3])
 y_val <- as.data.frame(splitted_data[4])
 
+
+
+#create the model
+# Remove 'Id' column from x_train
+x_train <- x_train[, !(names(x_train) %in% c('Id'))]
+
+# Remove 'Id' column from y_train
+y_train <- y_train[, !(names(y_train) %in% c('Id'))]
+SalePrice <- data.frame(SalePrice=y_train)
+
+# Combine x_train and y_train into a new data frame without 'Id' column
+train_data <- cbind(x_train, SalePrice)
+
+# Fit the random forest model
+model <- randomForest(SalePrice ~ ., data = train_data)
+
+
+# Predictions for x_val
+y_val <- y_val[, !(names(y_val) %in% c('Id'))]
+SalePrice <- data.frame(SalePrice=y_train)
+predictions <- predict(model, newdata = x_val)
+str(predictions)
+
+
+
+# Evaluate the model
+mse <- mean((predictions - y_val)^2)  # Mean squared error
+rmse <- sqrt(mean((predictions - y_val)^2))
+r_squared <- cor(predictions, y_val)^2  # R-squared value
+
+# Print evaluation metrics
+cat("Evaluation Metrics:\n")
+cat("MSE:", mse, "\n")
+cat("RMSE:", rmse, "\n")
+cat("R-squared:", r_squared, "\n")
+
+# Create a data frame with 'Id' and 'SalePrice' columns
+predictions <- predict(model, newdata = x_test)
+start_id <- 1461
+end_id <- 2919
+
+# Create a data frame with sequential 'Id' and 'SalePrice' columns
+predictions_df <- data.frame(Id = seq(start_id, end_id), SalePrice = predictions)
+
+
+# Save the data frame to a CSV file
+write.csv(predictions_df, file = "D:/4th year CS/Distrputed Computing/House-Pricing-Project/predictions.csv", row.names = FALSE)
 
 
 
