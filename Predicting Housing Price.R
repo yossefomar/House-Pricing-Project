@@ -96,7 +96,7 @@ Preprocess <- function(train_data, test_data){
   test_data <- test_data[, -which(names(test_data) == "Id")]
   
   
-  ######### Remove Columns that contains more the {30}% Null Values #########
+  ######### Remove Columns that contains more the {15}% Null Values #########
   processed_data <- RemoveNullColumns(15, train_data, test_data)
   train_data <- as.data.frame(processed_data[1])
   test_data <- as.data.frame(processed_data[2])
@@ -220,15 +220,71 @@ train_data <- process_train_data(x_train, y_train)
 # Fit the random forest model
 #model <- randomForest(SalePrice ~ ., data = train_data, ntree = 200)
 
-gbm_model <- gbm(SalePrice ~ ., data = train_data, n.trees = 1000, shrinkage = 0.01, interaction.depth = 4)
+# Fit GBM (Gradient Boosting Machine)
+gbm_model <- gbm(SalePrice ~ ., data = train_data, n.trees = 1000, shrinkage = 0.01, interaction.depth = 6)
+
+
+
+# Prediction for train
+y_train <- y_train[, !(names(y_train) %in% c('Id'))]
+train_predictions <- predict(gbm_model, newdata = x_train)
+
+# Visualize Error
+residuals <- y_train - train_predictions
+
+# Scatter plot of Actual and Predicted
+plot(y_train, train_predictions,
+     xlab = "Actual SalePrice", ylab = "Predictons",
+     main = "Actual Predicted Plot (Train)")
+
+# Scatter plot of residuals
+plot(y_train, residuals,
+     xlab = "Actual SalePrice", ylab = "Residuals",
+     main = "Residuals Plot (Train)")
+
+# Histogram of residuals
+hist(residuals, 
+     xlab = "Residuals", ylab = "Frequency",
+     main = "Residuals Histogram (Train)")
+
+# Evaluate the model
+mse <- mean((train_predictions - y_train)^2)  # Mean squared error
+rmse <- sqrt(mean((train_predictions - y_train)^2))
+r_squared <- cor(train_predictions, y_train)^2  # R-squared value
+
+# Print evaluation metrics
+cat("Evaluation Metrics Train:\n")
+cat("MSE Train:", mse, "\n")
+cat("RMSE Train:", rmse, "\n")
+cat("R-squared Train:", r_squared, "\n")
+
 
 
 
 # Predictions for x_val
 y_val <- y_val[, !(names(y_val) %in% c('Id'))]
-SalePrice <- data.frame(SalePrice=y_train)
+
 #predictions <- predict(model, newdata = x_val)
 predictions <- predict(gbm_model, newdata = x_val)
+
+# Visualize Error
+residuals <- y_val - predictions
+
+# Scatter plot of Actual and Predicted
+plot(y_val, predictions,
+     xlab = "Actual SalePrice", ylab = "Predictons",
+     main = "Actual Predicted Plot (Validation)")
+
+# Scatter plot of residuals
+plot(y_val, residuals,
+     xlab = "Actual SalePrice", ylab = "Residuals",
+     main = "Residuals Plot (Validation)")
+
+# Histogram of residuals
+hist(residuals, 
+     xlab = "Residuals", ylab = "Frequency",
+     main = "Residuals Histogram (Validation)")
+
 str(predictions)
 
 # Evaluate the model
@@ -237,10 +293,10 @@ rmse <- sqrt(mean((predictions - y_val)^2))
 r_squared <- cor(predictions, y_val)^2  # R-squared value
 
 # Print evaluation metrics
-cat("Evaluation Metrics:\n")
-cat("MSE:", mse, "\n")
-cat("RMSE:", rmse, "\n")
-cat("R-squared:", r_squared, "\n")
+cat("Evaluation Metrics Validation:\n")
+cat("MSE Validation:", mse, "\n")
+cat("RMSE Validation:", rmse, "\n")
+cat("R-squared Validation:", r_squared, "\n")
 
 # Create a data frame with 'Id' and 'SalePrice' columns
 
