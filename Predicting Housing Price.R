@@ -156,7 +156,7 @@ process_train_data <- function(x_train, y_train) {
 }
 
 # Remove least correlation 
-remove_low_correlation <- function(x_train, y_train, threshold = 0.4) {
+  RemoveLowCorrelation <- function(x_train, y_train, threshold = 0.4) {
   correlation_matrix <- cor(x_train, y_train)
   abs_correlation <- abs(correlation_matrix)
   
@@ -192,7 +192,7 @@ print(correlation_matrix*100)
 
 # Remove Low Correlation Columns
 str(x_train)
-x_train <- remove_low_correlation(x_train, y_train, threshold = 0.5)
+x_train <- RemoveLowCorrelation(x_train, y_train, threshold = 0.5)
 x_test <- x_test[colnames(x_train)]
 str(x_train)
 
